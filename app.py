@@ -226,6 +226,7 @@ def run_manual():
 
 @app.route("/auto", methods=["GET"])
 def run_auto():
+    send_telegram("🤖 AUTO RUN OK")
     logs = main(send_tg=True)
     return jsonify({"logs": logs})
 
