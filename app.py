@@ -221,7 +221,7 @@ def home():
 @app.route("/run", methods=["GET"])
 def run_manual():
     logs = main(send_tg=False)
-    return jsonify({"logs": logs})
+    return "\n".join(logs)
 
 
 @app.route("/auto", methods=["GET"])
