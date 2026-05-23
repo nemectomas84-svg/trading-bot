@@ -24,13 +24,14 @@ SEND_TELEGRAM = True  # 🔥 prepínač
 FILE = "trade.json"
 app = Flask(__name__)
 
-
 def send(msg):
     if SEND_TELEGRAM:
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-        requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
-
-
+        try:
+            url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+            requests.post(url, data={"chat_id": CHAT_ID, "text": msg}, timeout=5)
+        except Exception as e:
+            print("Telegram error:", e)
+            
 def log(msg, logs):
     print(msg)
     logs.append(msg)
