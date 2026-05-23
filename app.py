@@ -142,7 +142,7 @@ def main(send_tg=True):
 
                 save_trade(trade)
 
-                 msg = f"""
+                msg = f"""
                 📉 ENTRY
 
                 Symbol: {symbol}
