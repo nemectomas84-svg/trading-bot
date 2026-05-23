@@ -117,8 +117,15 @@ def main(send_tg=True):
                 }
 
                 save_trade(trade)
+                
+                msg = f"""
+                📈 ENTRY
 
-                msg = f"📈 {symbol} LONG | Entry {round(c,2)} | SL {round(trade['stop'],2)}"
+                Symbol: {symbol}
+                Type: LONG
+                Entry: {round(c,2)}
+                SL: {round(trade['stop'],2)}
+                """
                 send(msg)
                 log(msg, logs)
 
@@ -135,7 +142,14 @@ def main(send_tg=True):
 
                 save_trade(trade)
 
-                msg = f"📉 {symbol} SHORT | Entry {round(c,2)} | SL {round(trade['stop'],2)}"
+                 msg = f"""
+                📉 ENTRY
+
+                Symbol: {symbol}
+                Type: SHORT
+                Entry: {round(c,2)}
+                SL: {round(trade['stop'],2)}
+                """
                 send(msg)
                 log(msg, logs)
 
@@ -171,12 +185,22 @@ def main(send_tg=True):
             new_sl = price - atr * 1.5
             if new_sl > trade["stop"]:
                 trade["stop"] = new_sl
-                msg = f"SL moved → {round(new_sl,2)}"
+                msg = f"""
+                🔁 TRAILING
+
+                Symbol: {trade['symbol']}
+                New SL: {round(new_sl,2)}
+                """
                 send(msg)
                 log(msg, logs)
 
             if price <= trade["stop"]:
-                msg = "EXIT (SL hit)"
+                msg = f"""
+                ❌ EXIT
+
+                Symbol: {trade['symbol']}
+                Reason: SL HIT
+                """
                 send(msg)
                 log(msg, logs)
                 delete_trade()
@@ -195,12 +219,22 @@ def main(send_tg=True):
             new_sl = price + atr * 1.5
             if new_sl < trade["stop"]:
                 trade["stop"] = new_sl
-                msg = f"SL moved → {round(new_sl,2)}"
+                msg = f"""
+                🔁 TRAILING
+
+                Symbol: {trade['symbol']}
+                New SL: {round(new_sl,2)}
+                """
                 send(msg)
                 log(msg, logs)
 
             if price >= trade["stop"]:
-                msg = "EXIT (SL hit)"
+                msg = f"""
+                ❌ EXIT
+
+                Symbol: {trade['symbol']}
+                Reason: SL HIT
+                """
                 send(msg)
                 log(msg, logs)
                 delete_trade()
