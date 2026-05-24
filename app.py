@@ -203,11 +203,12 @@ def main(send_tg=True):
                     log(msg, logs)
                     
             if price <= trade["stop"]:
+                profit = price - entry
                 msg = f"""
                 ❌ EXIT
 
                 Symbol: {trade['symbol']}
-                Reason: SL HIT
+                Result: {round(profit,2)}
                 """
                 send(msg)
                 log(msg, logs)
