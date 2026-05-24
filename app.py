@@ -115,6 +115,7 @@ def main(send_tg=True):
                     "direction": "LONG",
                     "entry": c,
                     "stop": c - atr * 2,
+                    "last_sl": c - atr * 2
                 }
 
                 save_trade(trade)
@@ -139,6 +140,7 @@ def main(send_tg=True):
                     "direction": "SHORT",
                     "entry": c,
                     "stop": c + atr * 2,
+                    "last_sl": c + atr * 2
                 }
 
                 save_trade(trade)
@@ -179,22 +181,27 @@ def main(send_tg=True):
 
             if profit > atr * 2 and stop < entry:
                 trade["stop"] = entry
+                trade["last_sl"] = entry
                 msg = "SL → BREAK EVEN"
                 send(msg)
                 log(msg, logs)
 
             new_sl = price - atr * 1.5
             if new_sl > trade["stop"]:
-                trade["stop"] = new_sl
-                msg = f"""
-                🔁 TRAILING
-
-                Symbol: {trade['symbol']}
-                New SL: {round(new_sl,2)}
-                """
-                send(msg)
-                log(msg, logs)
-
+            
+                if abs(new_sl - trade["last_sl"]) > atr * 0.5:
+            
+                    trade["stop"] = new_sl
+                    trade["last_sl"] = new_sl  
+            
+                    msg = f"""🔁 TRAILING
+            
+            Symbol: {trade['symbol']}
+            New SL: {round(new_sl,2)}"""
+            
+                    send(msg)
+                    log(msg, logs)
+                    
             if price <= trade["stop"]:
                 msg = f"""
                 ❌ EXIT
@@ -219,15 +226,17 @@ def main(send_tg=True):
 
             new_sl = price + atr * 1.5
             if new_sl < trade["stop"]:
-                trade["stop"] = new_sl
-                msg = f"""
-                🔁 TRAILING
-
-                Symbol: {trade['symbol']}
-                New SL: {round(new_sl,2)}
-                """
-                send(msg)
-                log(msg, logs)
+                if abs(new_sl - trade["last_sl"]) > atr * 0.5:
+                    trade["stop"] = new_sl
+                    trade["last_sl"] = new_sl
+                    msg = f"""
+                    🔁 TRAILING
+    
+                    Symbol: {trade['symbol']}
+                    New SL: {round(new_sl,2)}
+                    """
+                    send(msg)
+                    log(msg, logs)
 
             if price >= trade["stop"]:
                 msg = f"""
