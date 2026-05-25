@@ -43,26 +43,9 @@ def save_config(data):
 # EMAIL
 # =========================
 def send_email(message, to_email):
-    import smtplib
-    from email.mime.text import MIMEText
-
-    sender = "nemec.tomas84@gmail.com"
-    password = "phlnwehwvwmomzzc"  # !!! Gmail app password
-
-    msg = MIMEText(message)
-    msg["Subject"] = "Trading Bot"
-    msg["From"] = sender
-    msg["To"] = to_email
-
-    server = smtplib.SMTP("smtp.gmail.com", 587)
-    server.starttls()
-    server.login(sender, password)
-    server.send_message(msg)
-    server.quit()
-def send_email(message, to_email):
     import requests
 
-    API_KEY = "TU_DAJ_RESEND_API_KEY"
+    API_KEY = "re_6NxT7WKB_N1QMzY4jCsQvrQeBgrYig31s"
 
     url = "https://api.resend.com/emails"
 
