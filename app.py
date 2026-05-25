@@ -59,7 +59,29 @@ def send_email(message, to_email):
     server.login(sender, password)
     server.send_message(msg)
     server.quit()
+def send_email(message, to_email):
+    import requests
 
+    API_KEY = "TU_DAJ_RESEND_API_KEY"
+
+    url = "https://api.resend.com/emails"
+
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    data = {
+        "from": "onboarding@resend.dev",
+        "to": [to_email],
+        "subject": "Trading Bot",
+        "html": f"<p>{message}</p>"
+    }
+
+    response = requests.post(url, json=data, headers=headers)
+
+    print(response.text)
+    
 @app.route("/test-email")
 def test_email():
     try:
