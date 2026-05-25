@@ -7,8 +7,8 @@ import os
 from flask import Flask, jsonify, request
 
 # =========================
-BOT_TOKEN = "TU_DAJ_TOKEN"
-CHAT_ID = "TU_DAJ_CHAT_ID"
+BOT_TOKEN = "8764608057:AAGkxxNSFVWKDYmCeP6L-_FG5Dq-NFa0-lk"
+CHAT_ID = "1950077580"
 SEND_TELEGRAM = True
 # =========================
 
@@ -46,7 +46,7 @@ def send_email(message, to_email):
     import smtplib
     from email.mime.text import MIMEText
 
-    sender = "tvojgmail@gmail.com"
+    sender = "nemec.tomas84@gmail.com"
     password = "APP_PASSWORD"  # !!! Gmail app password
 
     msg = MIMEText(message)
