@@ -65,7 +65,7 @@ def test_email():
     try:
         send_email(
             "🧪 TEST EMAIL z Trading Botu funguje!",
-            "TVOJ_EMAIL@SEM_DAJ"
+            "nemec.tomas84@gmail.com"
         )
         return "EMAIL POSLANY"
     except Exception as e:
