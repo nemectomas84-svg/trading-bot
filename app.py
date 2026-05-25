@@ -60,7 +60,17 @@ def send_email(message, to_email):
     server.send_message(msg)
     server.quit()
 
-
+@app.route("/test-email")
+def test_email():
+    try:
+        send_email(
+            "🧪 TEST EMAIL z Trading Botu funguje!",
+            "TVOJ_EMAIL@SEM_DAJ"
+        )
+        return "EMAIL POSLANY"
+    except Exception as e:
+        return f"CHYBA: {e}"
+        
 # =========================
 # TELEGRAM + EMAIL
 # =========================
