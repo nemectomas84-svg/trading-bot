@@ -17,7 +17,7 @@ app = Flask(__name__)
 
 
 # =========================
-# TELEGRAM
+# TELEGRAM A MAIL
 # =========================
 def send(msg):
     if SEND_TELEGRAM:
@@ -32,7 +32,9 @@ def log(msg, logs):
     print(msg)
     logs.append(msg)
 
-
+def save_config(data)
+    with open("config.json", "w") as f:
+        json.dump(data, f)
 # =========================
 # FILE STORAGE
 # =========================
@@ -275,6 +277,19 @@ def run_auto():
     logs = main(send_tg=True)
     return jsonify({"logs": logs})
 
+from flask import request
+
+@app.route("/settings", methods=["POST"])
+def settings():
+    email_enabled = request.form.get("email") == "on"
+    email_address = request.form.get("email_address")
+
+    save_config({
+        "email_enabled": email_enabled,
+        "email_address": email_address
+    })
+    
+    return "ULOZENE"
 
 # =========================
 # START SERVER (RENDER FIX)
