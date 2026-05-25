@@ -4,22 +4,70 @@ import pandas as pd
 import requests
 import json
 import os
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 
 # =========================
-BOT_TOKEN = "8764608057:AAGkxxNSFVWKDYmCeP6L-_FG5Dq-NFa0-lk"
-CHAT_ID = "1950077580"
+BOT_TOKEN = "TU_DAJ_TOKEN"
+CHAT_ID = "TU_DAJ_CHAT_ID"
 SEND_TELEGRAM = True
 # =========================
 
 FILE = "trade.json"
+CONFIG_FILE = "config.json"
+
 app = Flask(__name__)
 
+# =========================
+# CONFIG
+# =========================
+def load_config():
+    try:
+        if os.path.exists(CONFIG_FILE):
+            with open(CONFIG_FILE, "r") as f:
+                return json.load(f)
+    except:
+        pass
+
+    return {
+        "email_enabled": False,
+        "email_address": ""
+    }
+
+
+def save_config(data):
+    with open(CONFIG_FILE, "w") as f:
+        json.dump(data, f)
+
 
 # =========================
-# TELEGRAM A MAIL
+# EMAIL
+# =========================
+def send_email(message, to_email):
+    import smtplib
+    from email.mime.text import MIMEText
+
+    sender = "tvojgmail@gmail.com"
+    password = "APP_PASSWORD"  # !!! Gmail app password
+
+    msg = MIMEText(message)
+    msg["Subject"] = "Trading Bot"
+    msg["From"] = sender
+    msg["To"] = to_email
+
+    server = smtplib.SMTP("smtp.gmail.com", 587)
+    server.starttls()
+    server.login(sender, password)
+    server.send_message(msg)
+    server.quit()
+
+
+# =========================
+# TELEGRAM + EMAIL
 # =========================
 def send(msg):
+    config = load_config()
+
+    # TELEGRAM
     if SEND_TELEGRAM:
         try:
             url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
@@ -27,14 +75,35 @@ def send(msg):
         except Exception as e:
             print("Telegram error:", e)
 
+    # EMAIL
+    if config.get("email_enabled"):
+        try:
+            send_email(msg, config.get("email_address"))
+        except Exception as e:
+            print("Email error:", e)
+
 
 def log(msg, logs):
     print(msg)
     logs.append(msg)
 
-def save_config(data)
-    with open("config.json", "w") as f:
-        json.dump(data, f)
+
+# =========================
+# SETTINGS (checkbox save)
+# =========================
+@app.route("/settings", methods=["POST"])
+def settings():
+    email_enabled = request.form.get("email") == "on"
+    email_address = request.form.get("email_address")
+
+    save_config({
+        "email_enabled": email_enabled,
+        "email_address": email_address
+    })
+
+    return "ULOZENE"
+
+
 # =========================
 # FILE STORAGE
 # =========================
@@ -105,11 +174,7 @@ def main(send_tg=True):
 
     symbols = ["GC=F", "NQ=F"]
 
-    # =====================
-    # ENTRY
-    # =====================
     if not trade:
-
         for symbol in symbols:
             df = get_data(symbol)
             if df is None:
@@ -124,9 +189,7 @@ def main(send_tg=True):
             low20 = float(df["LOW_20"].iloc[-2])
             atr = float(last["ATR"])
 
-            # LONG
             if ema50 > ema200 and c > high20 + atr * 0.2:
-
                 trade = {
                     "symbol": symbol,
                     "direction": "LONG",
@@ -137,15 +200,12 @@ def main(send_tg=True):
 
                 save_trade(trade)
 
-                msg = f"📈 ENTRY\nSymbol: {symbol}\nType: LONG\nEntry: {round(c,2)}\nSL: {round(trade['stop'],2)}"
+                msg = f"📈 ENTRY {symbol} LONG {round(c,2)}"
                 send(msg)
                 log(msg, logs)
-
                 return logs
 
-            # SHORT
             elif ema50 < ema200 and c < low20 - atr * 0.2:
-
                 trade = {
                     "symbol": symbol,
                     "direction": "SHORT",
@@ -156,101 +216,39 @@ def main(send_tg=True):
 
                 save_trade(trade)
 
-                msg = f"📉 ENTRY\nSymbol: {symbol}\nType: SHORT\nEntry: {round(c,2)}\nSL: {round(trade['stop'],2)}"
+                msg = f"📉 ENTRY {symbol} SHORT {round(c,2)}"
                 send(msg)
                 log(msg, logs)
-
                 return logs
 
         log("NO TRADE", logs)
         return logs
 
-    # =====================
-    # TRAILING
-    # =====================
     else:
-
         df = get_data(trade["symbol"])
         if df is None:
-            log("DATA ERROR", logs)
             return logs
 
         last = df.iloc[-1]
-
         price = float(last["Close"])
         atr = float(last["ATR"])
 
         entry = trade["entry"]
-        stop = trade["stop"]
 
-        # =====================
-        # LONG
-        # =====================
         if trade["direction"] == "LONG":
-
-            profit = price - entry
-
-            if profit > atr * 2 and stop < entry:
-                trade["stop"] = entry
-                trade["last_sl"] = entry
-                msg = "SL → BREAK EVEN"
-                send(msg)
-                log(msg, logs)
-
-            new_sl = price - atr * 1.5
-
-            if new_sl > trade["stop"]:
-                if abs(new_sl - trade["last_sl"]) > atr * 0.5:
-
-                    trade["stop"] = new_sl
-                    trade["last_sl"] = new_sl
-
-                    msg = f"🔁 TRAILING\nSymbol: {trade['symbol']}\nNew SL: {round(new_sl,2)}"
-                    send(msg)
-                    log(msg, logs)
-
             if price <= trade["stop"]:
-                profit = price - entry
-
-                msg = f"❌ EXIT\nSymbol: {trade['symbol']}\nResult: {round(profit,2)}"
+                msg = f"❌ EXIT {trade['symbol']}"
                 send(msg)
-                log(msg, logs)
-
                 delete_trade()
+                log(msg, logs)
                 return logs
 
-        # =====================
-        # SHORT
-        # =====================
         else:
-
-            profit = entry - price
-
-            if profit > atr * 2 and stop > entry:
-                trade["stop"] = entry
-                trade["last_sl"] = entry
-                msg = "SL → BREAK EVEN"
-                send(msg)
-                log(msg, logs)
-
-            new_sl = price + atr * 1.5
-
-            if new_sl < trade["stop"]:
-                if abs(new_sl - trade["last_sl"]) > atr * 0.5:
-
-                    trade["stop"] = new_sl
-                    trade["last_sl"] = new_sl
-
-                    msg = f"🔁 TRAILING\nSymbol: {trade['symbol']}\nNew SL: {round(new_sl,2)}"
-                    send(msg)
-                    log(msg, logs)
-
             if price >= trade["stop"]:
-                msg = f"❌ EXIT\nSymbol: {trade['symbol']}\nReason: SL HIT"
+                msg = f"❌ EXIT {trade['symbol']}"
                 send(msg)
-                log(msg, logs)
-
                 delete_trade()
+                log(msg, logs)
                 return logs
 
         save_trade(trade)
@@ -261,40 +259,25 @@ def main(send_tg=True):
 # =========================
 # API
 # =========================
-@app.route("/", methods=["GET"])
+@app.route("/")
 def home():
     return "BOT BEZI"
 
 
-@app.route("/run", methods=["GET"])
+@app.route("/run")
 def run_manual():
     logs = main(send_tg=False)
     return "<br>".join(logs)
 
 
-@app.route("/auto", methods=["GET"])
+@app.route("/auto")
 def run_auto():
     logs = main(send_tg=True)
     return jsonify({"logs": logs})
 
-from flask import request
-
-@app.route("/settings", methods=["POST"])
-def settings():
-    email_enabled = request.form.get("email") == "on"
-    email_address = request.form.get("email_address")
-
-    save_config({
-        "email_enabled": email_enabled,
-        "email_address": email_address
-    })
-    
-    return "ULOZENE"
 
 # =========================
-# START SERVER (RENDER FIX)
+# START
 # =========================
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
-    
+    app.run(host="0.0.0.0", port=5000)
