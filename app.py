@@ -47,7 +47,7 @@ def send_email(message, to_email):
     from email.mime.text import MIMEText
 
     sender = "nemec.tomas84@gmail.com"
-    password = "phln wehw vwmo mzzc"  # !!! Gmail app password
+    password = "phlnwehwvwmomzzc"  # !!! Gmail app password
 
     msg = MIMEText(message)
     msg["Subject"] = "Trading Bot"
