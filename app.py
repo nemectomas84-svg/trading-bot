@@ -63,7 +63,9 @@ def send_email(message, to_email):
 
     response = requests.post(url, json=data, headers=headers)
 
-    print(response.text)
+    if response.status_code != 200:
+        raise Exception(response.text)
+    return "EMAIL_SENT"
     
 @app.route("/test-email")
 def test_email():
@@ -92,10 +94,13 @@ def send(msg):
 
     # EMAIL
     if config.get("email_enabled"):
-        try:
-            send_email(msg, config.get("email_address"))
-        except Exception as e:
-            print("Email error:", e)
+        email = config.get("email_address")
+
+        if email:
+            try:
+                send_email(msg, email)
+            except Exception as e:
+                print("Email error:", e)
 
 
 def log(msg, logs):
