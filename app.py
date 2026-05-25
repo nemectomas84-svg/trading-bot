@@ -295,7 +295,7 @@ def run_auto():
     logs = main(send_tg=True)
     return jsonify({"logs": logs})
 
--@app.route("/config")
+@app.route("/config")
 def get_config():
     return load_config()
 # =========================
