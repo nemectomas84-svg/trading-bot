@@ -16,7 +16,7 @@ SEND_TELEGRAM = True
 # =========================
 # EMAIL (RESEND)
 # =========================
-RESEND_API_KEY = "TU_DAJ_API_KEY"
+RESEND_API_KEY = "re_6NxT7WKB_N1QMzY4jCsQvrQeBgrYig31s"
 
 # =========================
 FILE = "trade.json"
