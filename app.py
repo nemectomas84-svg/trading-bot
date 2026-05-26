@@ -93,14 +93,14 @@ def send(msg):
             print("Telegram error:", e)
 
     # EMAIL
-    if config.get("email_enabled"):
-        email = config.get("email_address")
+    #if config.get("email_enabled"):
+     #   email = config.get("email_address")
 
-        if email:
-            try:
-                send_email(msg, email)
-            except Exception as e:
-                print("Email error:", e)
+    if email:
+        try:
+            send_email(msg, email)
+        except Exception as e:
+            print("Email error:", e)
 
 
 def log(msg, logs):
