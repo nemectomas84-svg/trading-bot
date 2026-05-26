@@ -7,11 +7,18 @@ import os
 from flask import Flask, jsonify, request
 
 # =========================
+# TELEGRAM
+# =========================
 BOT_TOKEN = "8764608057:AAGkxxNSFVWKDYmCeP6L-_FG5Dq-NFa0-lk"
 CHAT_ID = "1950077580"
 SEND_TELEGRAM = True
-# =========================
 
+# =========================
+# EMAIL (RESEND)
+# =========================
+RESEND_API_KEY = "TU_DAJ_API_KEY"
+
+# =========================
 FILE = "trade.json"
 CONFIG_FILE = "config.json"
 
@@ -43,43 +50,25 @@ def save_config(data):
 # EMAIL
 # =========================
 def send_email(message, to_email):
-    import requests
-
-    API_KEY = "re_6NxT7WKB_N1QMzY4jCsQvrQeBgrYig31s"
-
     url = "https://api.resend.com/emails"
 
     headers = {
-        "Authorization": f"Bearer {API_KEY}",
+        "Authorization": f"Bearer {RESEND_API_KEY}",
         "Content-Type": "application/json"
     }
 
     data = {
-        "from": "onboarding@resend.dev",
+        "from": "Bot <onboarding@resend.dev>",
         "to": [to_email],
-        "subject": "Trading Bot",
-        "html": f"<p>{message}</p>"
+        "subject": "Trading Alert",
+        "html": f"<pre>{message}</pre>"
     }
 
-    response = requests.post(url, json=data, headers=headers)
+    requests.post(url, headers=headers, json=data)
 
-    if response.status_code != 200:
-        raise Exception(response.text)
-    return "EMAIL_SENT"
-    
-@app.route("/test-email")
-def test_email():
-    try:
-        send_email(
-            "🧪 TEST EMAIL z Trading Botu funguje!",
-            "nemec.tomas84@gmail.com"
-        )
-        return "EMAIL POSLANY"
-    except Exception as e:
-        return f"CHYBA: {e}"
-        
+
 # =========================
-# TELEGRAM + EMAIL
+# SEND (Telegram + Email)
 # =========================
 def send(msg):
     config = load_config()
@@ -93,211 +82,155 @@ def send(msg):
             print("Telegram error:", e)
 
     # EMAIL
-    #if config.get("email_enabled"):
-     #   email = config.get("email_address")
+    if config.get("email_enabled"):
+        email = config.get("email_address")
 
-    if email:
-        try:
-            send_email(msg, email)
-        except Exception as e:
-            print("Email error:", e)
-
-
-def log(msg, logs):
-    print(msg)
-    logs.append(msg)
+        if email:
+            try:
+                send_email(msg, email)
+            except Exception as e:
+                print("Email error:", e)
 
 
 # =========================
-# SETTINGS (checkbox save)
-# =========================
-@app.route("/settings", methods=["POST"])
-def settings():
-    email_enabled = request.form.get("email") == "on"
-    email_address = request.form.get("email_address")
-
-    save_config({
-        "email_enabled": email_enabled,
-        "email_address": email_address
-    })
-
-    return "ULOZENE"
-
-
-# =========================
-# FILE STORAGE
+# TRADE STORAGE
 # =========================
 def load_trade():
-    try:
-        if os.path.exists(FILE):
-            with open(FILE, "r") as f:
-                return json.load(f)
-    except:
-        return None
+    if os.path.exists(FILE):
+        with open(FILE, "r") as f:
+            return json.load(f)
     return None
 
 
-def save_trade(trade):
+def save_trade(data):
     with open(FILE, "w") as f:
-        json.dump(trade, f)
-
-
-def delete_trade():
-    if os.path.exists(FILE):
-        os.remove(FILE)
+        json.dump(data, f)
 
 
 # =========================
-# DATA
+# STRATEGY
 # =========================
-def get_data(symbol):
-    try:
-        df = yf.download(symbol, interval="1h", period="60d")
+def get_signal():
+    df = yf.download("NQ=F", period="1d", interval="5m")
 
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = df.columns.get_level_values(0)
-
-        df = df.dropna()
-
-        close = df["Close"].astype(float)
-        high = df["High"].astype(float)
-        low = df["Low"].astype(float)
-
-        df["EMA50"] = close.ewm(span=50).mean()
-        df["EMA200"] = close.ewm(span=200).mean()
-
-        df["HIGH_20"] = high.rolling(20).max()
-        df["LOW_20"] = low.rolling(20).min()
-
-        df["TR"] = np.maximum(
-            high - low,
-            np.maximum(abs(high - close.shift(1)), abs(low - close.shift(1)))
-        )
-        df["ATR"] = df["TR"].rolling(14).mean()
-
-        return df.dropna()
-
-    except Exception as e:
-        print("DATA ERROR:", e)
+    if df is None or len(df) < 50:
         return None
 
+    df["ema"] = df["Close"].ewm(span=20).mean()
 
-# =========================
-# MAIN LOGIC
-# =========================
-def main(send_tg=True):
-    global SEND_TELEGRAM
-    SEND_TELEGRAM = send_tg
+    price = df["Close"].iloc[-1]
+    ema = df["ema"].iloc[-1]
 
-    logs = []
-    trade = load_trade()
-
-    symbols = ["GC=F", "NQ=F"]
-
-    if not trade:
-        for symbol in symbols:
-            df = get_data(symbol)
-            if df is None:
-                continue
-
-            last = df.iloc[-1]
-
-            c = float(last["Close"])
-            ema50 = float(last["EMA50"])
-            ema200 = float(last["EMA200"])
-            high20 = float(df["HIGH_20"].iloc[-2])
-            low20 = float(df["LOW_20"].iloc[-2])
-            atr = float(last["ATR"])
-
-            if ema50 > ema200 and c > high20 + atr * 0.2:
-                trade = {
-                    "symbol": symbol,
-                    "direction": "LONG",
-                    "entry": c,
-                    "stop": c - atr * 2,
-                    "last_sl": c - atr * 2
-                }
-
-                save_trade(trade)
-
-                msg = f"📈 ENTRY {symbol} LONG {round(c,2)}"
-                send(msg)
-                log(msg, logs)
-                return logs
-
-            elif ema50 < ema200 and c < low20 - atr * 0.2:
-                trade = {
-                    "symbol": symbol,
-                    "direction": "SHORT",
-                    "entry": c,
-                    "stop": c + atr * 2,
-                    "last_sl": c + atr * 2
-                }
-
-                save_trade(trade)
-
-                msg = f"📉 ENTRY {symbol} SHORT {round(c,2)}"
-                send(msg)
-                log(msg, logs)
-                return logs
-
-        log("NO TRADE", logs)
-        return logs
-
+    # jednoduchá logika
+    if price > ema:
+        direction = "LONG"
+    elif price < ema:
+        direction = "SHORT"
     else:
-        df = get_data(trade["symbol"])
-        if df is None:
-            return logs
+        return None
 
-        last = df.iloc[-1]
-        price = float(last["Close"])
-        atr = float(last["ATR"])
+    # ATR pre trailing
+    df["tr"] = np.maximum(
+        df["High"] - df["Low"],
+        np.maximum(
+            abs(df["High"] - df["Close"].shift()),
+            abs(df["Low"] - df["Close"].shift())
+        )
+    )
+    df["atr"] = df["tr"].rolling(14).mean()
+    atr = df["atr"].iloc[-1]
 
-        entry = trade["entry"]
+    sl = price - atr if direction == "LONG" else price + atr
+    trail = atr  # veľkosť trailing stopu
 
-        if trade["direction"] == "LONG":
-            if price <= trade["stop"]:
-                msg = f"❌ EXIT {trade['symbol']}"
-                send(msg)
-                delete_trade()
-                log(msg, logs)
-                return logs
-
-        else:
-            if price >= trade["stop"]:
-                msg = f"❌ EXIT {trade['symbol']}"
-                send(msg)
-                delete_trade()
-                log(msg, logs)
-                return logs
-
-        save_trade(trade)
-        log("Trade managed", logs)
-        return logs
+    return {
+        "symbol": "NQ=F",
+        "direction": direction,
+        "price": float(price),
+        "sl": float(sl),
+        "trail": float(trail)
+    }
 
 
 # =========================
-# API
+# FORMAT MESSAGE
 # =========================
-@app.route("/")
-def home():
-    return "BOT BEZI"
+def format_msg(signal):
+    return f"""
+📈 TRADE SIGNAL
+
+Symbol: {signal['symbol']}
+Direction: {signal['direction']}
+
+Entry: {signal['price']:.2f}
+SL: {signal['sl']:.2f}
+Trailing Stop: {signal['trail']:.2f}
+"""
 
 
+# =========================
+# RUN (pre appku)
+# =========================
 @app.route("/run")
-def run_manual():
-    logs = main(send_tg=False)
-    return "<br>".join(logs)
+def run():
+    signal = get_signal()
+
+    if not signal:
+        return "NO TRADE"
+
+    return format_msg(signal)
 
 
+# =========================
+# AUTO (alerty)
+# =========================
 @app.route("/auto")
-def run_auto():
-    logs = main(send_tg=True)
-    return jsonify({"logs": logs})
+def auto():
+    signal = get_signal()
 
+    if not signal:
+        return "NO TRADE"
+
+    last = load_trade()
+
+    # anti spam
+    if last and last.get("direction") == signal["direction"]:
+        return "SKIP (same signal)"
+
+    save_trade(signal)
+
+    msg = format_msg(signal)
+    send(msg)
+
+    return "SENT"
+
+
+# =========================
+# SETTINGS (z appky)
+# =========================
+@app.route("/settings", methods=["POST"])
+def settings():
+    email_flag = request.form.get("email")
+    email_address = request.form.get("email_address")
+
+    config = {
+        "email_enabled": email_flag == "on",
+        "email_address": email_address
+    }
+
+    save_config(config)
+
+    return "OK"
+
+
+# =========================
+# CONFIG (pre appku)
+# =========================
 @app.route("/config")
-def get_config():
-    return load_config()
+def config():
+    return jsonify(load_config())
+
+
 # =========================
 # START
 # =========================
