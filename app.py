@@ -112,15 +112,29 @@ def save_trade(data):
 # =========================
 def get_signal():
     df = yf.download("NQ=F", period="1d", interval="5m")
-
+    
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.droplevel(1)
+    
     if df is None or df.empty or len(df) < 50:
         return None
 
     df["ema"] = df["Close"].ewm(span=20).mean()
 
-    price = float(df["Close"].iloc[-1])
-    ema = float(df["ema"].iloc[-1])
+    price = df["Close"].iloc[-1]
 
+    if hasattr(price, "iloc"):
+        price = price.iloc[0]
+
+    price = float(price)
+
+    ema = df["ema"].iloc[-1]
+
+    if hasattr(ema, "iloc"):
+        ema = ema.iloc[0]
+
+    ema = float(ema)
+    
     # jednoduchá logika
     if price > ema:
         direction = "LONG"
