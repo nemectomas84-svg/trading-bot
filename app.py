@@ -1,5 +1,4 @@
 import yfinance as yf
-import numpy as np
 import pandas as pd
 import requests
 import json
@@ -28,69 +27,15 @@ app = Flask(__name__)
 # CONFIG
 # =========================
 def load_config():
-    try:
-        if os.path.exists(CONFIG_FILE):
-            with open(CONFIG_FILE, "r") as f:
-                return json.load(f)
-    except:
-        pass
-
-    return {
-        "email_enabled": False,
-        "email_address": ""
-    }
+    if os.path.exists(CONFIG_FILE):
+        with open(CONFIG_FILE, "r") as f:
+            return json.load(f)
+    return {"email_enabled": False, "email_address": ""}
 
 
 def save_config(data):
     with open(CONFIG_FILE, "w") as f:
         json.dump(data, f)
-
-
-# =========================
-# EMAIL
-# =========================
-def send_email(message, to_email):
-    url = "https://api.resend.com/emails"
-
-    headers = {
-        "Authorization": f"Bearer {RESEND_API_KEY}",
-        "Content-Type": "application/json"
-    }
-
-    data = {
-        "from": "Bot <onboarding@resend.dev>",
-        "to": [to_email],
-        "subject": "Trading Alert",
-        "html": f"<pre>{message}</pre>"
-    }
-
-    requests.post(url, headers=headers, json=data)
-
-
-# =========================
-# SEND (Telegram + Email)
-# =========================
-def send(msg):
-    config = load_config()
-
-    # TELEGRAM
-    if SEND_TELEGRAM:
-        try:
-            url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-            requests.post(url, data={"chat_id": CHAT_ID, "text": msg}, timeout=5)
-        except Exception as e:
-            print("Telegram error:", e)
-
-    # EMAIL
-    if config.get("email_enabled"):
-        email = config.get("email_address")
-
-        if email:
-            try:
-                send_email(msg, email)
-            except Exception as e:
-                print("Email error:", e)
-
 
 # =========================
 # TRADE STORAGE
@@ -106,144 +51,175 @@ def save_trade(data):
     with open(FILE, "w") as f:
         json.dump(data, f)
 
+# =========================
+# EMAIL
+# =========================
+def send_email(message, to_email):
+    headers = {
+        "Authorization": f"Bearer {RESEND_API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    data = {
+        "from": "bot@resend.dev",
+        "to": [to_email],
+        "subject": "Trade Alert",
+        "text": message
+    }
+
+    requests.post("https://api.resend.com/emails", headers=headers, json=data)
 
 # =========================
-# STRATEGY
+# SEND
+# =========================
+def send(msg):
+    config = load_config()
+
+    if SEND_TELEGRAM:
+        try:
+            url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+            requests.post(url, data={"chat_id": CHAT_ID, "text": msg}, timeout=5)
+        except Exception as e:
+            print("Telegram error:", e)
+
+    if config.get("email_enabled"):
+        email = config.get("email_address")
+        if email:
+            send_email(msg, email)
+
+# =========================
+# SIGNAL
 # =========================
 def get_signal():
     df = yf.download("NQ=F", period="1d", interval="5m")
-    
-    if isinstance(df.columns, pd.MultiIndex):
-        df.columns = df.columns.droplevel(1)
-    
-    if df is None or df.empty or len(df) < 50:
+
+    if df.empty:
         return None
 
     df["ema"] = df["Close"].ewm(span=20).mean()
 
-    price = df["Close"].iloc[-1]
+    price = df["Close"].iloc[-1].item()
+    ema = df["ema"].iloc[-1].item()
 
-    if hasattr(price, "iloc"):
-        price = price.iloc[0]
-
-    price = float(price)
-
-    ema = df["ema"].iloc[-1]
-
-    if hasattr(ema, "iloc"):
-        ema = ema.iloc[0]
-
-    ema = float(ema)
-    
-    # jednoduchá logika
     if price > ema:
-        direction = "LONG"
+        return "LONG", price
     elif price < ema:
-        direction = "SHORT"
-    else:
-        return None
+        return "SHORT", price
 
-    # ATR pre trailing
-    df["tr"] = np.maximum(
-        df["High"] - df["Low"],
-        np.maximum(
-            abs(df["High"] - df["Close"].shift()),
-            abs(df["Low"] - df["Close"].shift())
-        )
-    )
-    df["atr"] = df["tr"].rolling(14).mean()
-    atr = df["atr"].iloc[-1]
-
-    sl = price - atr if direction == "LONG" else price + atr
-    trail = atr  # veľkosť trailing stopu
-
-    return {
-        "symbol": "NQ=F",
-        "direction": direction,
-        "price": float(price),
-        "sl": float(sl),
-        "trail": float(trail)
-    }
-
+    return None
 
 # =========================
-# FORMAT MESSAGE
+# AUTO LOGIKA
 # =========================
-def format_msg(signal):
-    return f"""
-📈 TRADE SIGNAL
+@app.route("/auto")
+def auto():
+    trade = load_trade()
+    signal = get_signal()
 
-Symbol: {signal['symbol']}
-Direction: {signal['direction']}
+    if signal is None:
+        return "no data"
 
-Entry: {signal['price']:.2f}
-SL: {signal['sl']:.2f}
-Trailing Stop: {signal['trail']:.2f}
+    direction, price = signal
+
+    trailing_distance = 40
+
+    # =====================
+    # NOVÝ TRADE
+    # =====================
+    if trade is None:
+        if direction == "LONG":
+            sl = price - trailing_distance
+            trail = price - trailing_distance
+        else:
+            sl = price + trailing_distance
+            trail = price + trailing_distance
+
+        trade = {
+            "direction": direction,
+            "entry": price,
+            "sl": sl,
+            "trail": trail
+        }
+
+        save_trade(trade)
+
+        msg = f"""
+📈 NEW TRADE
+
+{direction}
+Entry: {price:.2f}
+SL: {sl:.2f}
+Trailing: {trail:.2f}
 """
+        send(msg)
+        return msg
 
+    # =====================
+    # EXISTUJÚCI TRADE
+    # =====================
+    direction = trade["direction"]
+    sl = trade["sl"]
+    trail = trade["trail"]
+
+    # LONG
+    if direction == "LONG":
+        # trailing update
+        new_trail = price - trailing_distance
+        if new_trail > trail:
+            trade["trail"] = new_trail
+            save_trade(trade)
+            send(f"🔄 TRAIL MOVED: {new_trail:.2f}")
+
+        # exit
+        if price <= trade["trail"]:
+            send(f"❌ EXIT LONG {price:.2f}")
+            save_trade(None)
+            return "closed"
+
+    # SHORT
+    if direction == "SHORT":
+        new_trail = price + trailing_distance
+        if new_trail < trail:
+            trade["trail"] = new_trail
+            save_trade(trade)
+            send(f"🔄 TRAIL MOVED: {new_trail:.2f}")
+
+        if price >= trade["trail"]:
+            send(f"❌ EXIT SHORT {price:.2f}")
+            save_trade(None)
+            return "closed"
+
+    return "running"
 
 # =========================
-# RUN (pre appku)
+# MANUAL RUN (APPKA)
 # =========================
 @app.route("/run")
 def run():
     signal = get_signal()
 
-    if not signal:
-        return "NO TRADE"
+    if signal is None:
+        return jsonify({"msg": "No data"})
 
-    return format_msg(signal)
+    direction, price = signal
 
-
-# =========================
-# AUTO (alerty)
-# =========================
-@app.route("/auto")
-def auto():
-    signal = get_signal()
-
-    if not signal:
-        return "NO TRADE"
-
-    last = load_trade()
-
-    # anti spam
-    if last and last.get("direction") == signal["direction"]:
-        return "SKIP (same signal)"
-
-    save_trade(signal)
-
-    msg = format_msg(signal)
-    send(msg)
-
-    return "SENT"
-
+    return jsonify({
+        "direction": direction,
+        "price": round(price, 2)
+    })
 
 # =========================
-# SETTINGS (z appky)
+# SETTINGS (APP)
 # =========================
 @app.route("/settings", methods=["POST"])
 def settings():
-    email_flag = request.form.get("email")
-    email_address = request.form.get("email_address")
+    data = request.json
+    save_config(data)
+    return jsonify({"status": "ok"})
 
-    config = {
-        "email_enabled": email_flag == "on",
-        "email_address": email_address
-    }
-
-    save_config(config)
-
-    return "OK"
-
-
-# =========================
-# CONFIG (pre appku)
-# =========================
 @app.route("/config")
 def config():
     return jsonify(load_config())
-
 
 # =========================
 # START
