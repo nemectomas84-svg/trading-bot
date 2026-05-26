@@ -113,13 +113,13 @@ def save_trade(data):
 def get_signal():
     df = yf.download("NQ=F", period="1d", interval="5m")
 
-    if df is None or len(df) < 50:
+    if df is None or df.empty or len(df) < 50:
         return None
 
     df["ema"] = df["Close"].ewm(span=20).mean()
 
-    price = df["Close"].iloc[-1]
-    ema = df["ema"].iloc[-1]
+    price = float(df["Close"].iloc[-1])
+    ema = float(df["ema"].iloc[-1])
 
     # jednoduchá logika
     if price > ema:
